@@ -1,0 +1,180 @@
+syntax = "proto3";
+
+import "core.proto";
+import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
+
+option java_package = "com.redshelf.grpc.product";
+option csharp_namespace = "RedShelf.Grpc.Product";
+option go_package = "redshelf.grpc.product;redshelf_grpc_product";
+
+package redshelf.grpc.product;
+
+//////////////////////////////////
+// SERVICES
+//////////////////////////////////
+
+service ProductManager {
+  rpc MatchVendor (MatchVendorRequest) returns (MatchVendorResponse);
+  rpc MatchProduct (MatchProductRequest) returns (MatchProductResponse);
+  // TODO we need to allow calling getting product variant
+}
+
+service OfferManager {
+  rpc GetChannelOffers(GetChannelOffersRequest) returns (ChannelOffersResponse);
+}
+
+service EntitlementManager {
+  rpc GetUserEntitlements(GetUserEntitlementsRequest) returns (GetUserEntitlementsResponse);
+}
+
+//////////////////////////////////
+// REQUEST / RESPONSE MESSAGES
+//////////////////////////////////
+
+message GetUserEntitlementsRequest {
+  string user_id = 1;
+}
+
+message GetUserEntitlementsResponse {
+  repeated UserEntitlement entitlements = 1;
+}
+
+message MatchVendorRequest {
+  string name = 1;
+}
+
+message MatchVendorResponse {
+  repeated VendorMatch matches = 1;
+}
+
+message VendorMatch {
+  Vendor vendor = 1;
+  double confidence = 2;
+}
+
+message MatchProductRequest {
+  map<string,string> identifiers = 1;
+}
+
+message MatchProductResponse {
+  Product product = 1;
+  double confidence = 2;
+}
+
+message GetChannelOffersRequest {
+  string channel = 1;
+  string product_id = 2; // This is assuming that this is a product variant ID and is inclusive of the duration with pricing requested.
+}
+
+message ChannelOffersResponse {
+  repeated ChannelOffer offers = 1;
+}
+
+//////////////////////////////////
+// EVENTS
+//////////////////////////////////
+
+message UserEntitementCreated {
+  UserEntitlement entitlement = 1;
+}
+
+//////////////////////////////////
+// ENTITIES
+//////////////////////////////////
+
+message Vendor {
+  string id = 1;
+  string name = 2;
+
+  Vendor parent = 3;
+}
+
+message Product {
+  string id = 1; // RedShelf Product Unique Identifier
+  string name = 2; // Name of the product
+  string type = 3; // Type of the product
+  string description = 4; // Description of the product
+  map<string,string> attributes = 5; // Attributes of this product
+
+  Vendor producer = 6; // Who produces this product
+  repeated ProductVariant variants = 7; // A product has many variants
+  repeated redshelf.grpc.core.AlternateIdentifier identifiers = 8; // Identifiers for this product.
+}
+
+message ProductVariant {
+  Product product = 1; // The product this variant belongs to
+
+  string id = 2;
+  map<string,string> attributes = 3;
+  repeated redshelf.grpc.core.AlternateIdentifier identifiers = 4; // Identifiers for this product variant
+  repeated ChannelOffer offers = 5;
+
+  repeated ProductVariant items = 6;
+}
+
+message UserEntitlement {
+  redshelf.grpc.core.User user = 1;
+  ProductVariant product = 2;
+
+  google.protobuf.Timestamp from = 3; // If this hasn't been "redeemed", then this will be blank
+  google.protobuf.Timestamp thru = 4; // This will be from + the duration that this entitlement is for -- or blank if no termination date.
+
+  // If this user entitlement is related to a specific context.
+  // Currently this will be only within the context of a section if present.
+  google.protobuf.Any context = 5;
+}
+
+enum Channel {
+  ECOMM = 0;
+  IA = 1;
+  POS = 2;
+  PURCHASE_ORDER = 3; //TODO let's talk through this...
+}
+
+enum Availability {
+  ALLOWED = 0;
+  DENIED = 1;
+}
+
+message RegionAvailability {
+  string country_code = 1; // ISO 3166 OR *
+  Availability availability = 2;
+}
+
+enum OfferType {
+  BILL_UP_FRONT = 0;
+  CONTINUATION = 1;
+}
+
+message ChannelOffer {
+  string id = 1;
+  Channel channel = 2;
+  repeated RegionAvailability regions = 3;
+  google.protobuf.Timestamp start = 4;
+  google.protobuf.Timestamp end = 5;
+  Money price = 6;
+  OfferType offer_type = 7;
+  google.protobuf.Timestamp deleted = 8;
+}
+
+
+// TODO migrate this to sep file https://github.com/googleapis/googleapis/blob/master/google/type/money.proto
+// https://visualstudiomagazine.com/articles/2020/01/16/grpc-well-known-types.aspx
+// Represents an amount of money with its currency type.
+message Money {
+  // The three-letter currency code defined in ISO 4217.
+  string currency_code = 1;
+
+  // The whole units of the amount.
+  // For example if `currencyCode` is `"USD"`, then 1 unit is one US dollar.
+  int64 units = 2;
+
+  // Number of nano (10^-9) units of the amount.
+  // The value must be between -999,999,999 and +999,999,999 inclusive.
+  // If `units` is positive, `nanos` must be positive or zero.
+  // If `units` is zero, `nanos` can be positive, zero, or negative.
+  // If `units` is negative, `nanos` must be negative or zero.
+  // For example $-1.75 is represented as `units`=-1 and `nanos`=-750,000,000.
+  int32 nanos = 3;
+}

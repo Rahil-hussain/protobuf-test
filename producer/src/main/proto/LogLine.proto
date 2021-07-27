@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package com.mhowlett;
+
+import "google/protobuf/wrappers.proto";
+
+message LogLine {
+  string ip = 1;
+  uint64 timestamp = 2;
+  string url = 3;
+  string referer = 4;
+  string useragent = 5;
+  google.protobuf.UInt64Value session_id = 6;
+}

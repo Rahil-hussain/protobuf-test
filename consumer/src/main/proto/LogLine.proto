@@ -1,0 +1,164 @@
+syntax = "proto3";
+
+import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
+import "core.proto";
+import "product.proto";
+
+option java_package = "com.redshelf.grpc.university";
+option csharp_namespace = "RedShelf.Grpc.University";
+option go_package = "redshelf.grpc.university;redshelf_grpc_university";
+
+package redshelf.grpc.university;
+
+///////////////////////////////////
+// SERVICES
+//////////////////////////////////
+
+service UniversityService {
+  rpc CreateSection(CreateSectionRequest) returns (redshelf.grpc.core.CreateResponse);
+  rpc ListSections(ListSectionRequest) returns (ListSectionReply);
+  // TODO add section update method... for associated identifiers
+}
+
+//////////////////////////////////
+// REQUEST / RESPONSE
+//////////////////////////////////
+
+message ListSectionRequest {
+  repeated string ids = 1;
+
+  int32 offset = 2;
+  int32 limit = 3;
+  repeated string includes = 4; // allows the caller in include enrollments in returned entities
+
+  // list sections by other filters
+  repeated Course courses = 5;
+  repeated Term terms = 6;
+  repeated redshelf.grpc.product.Product products = 7;
+  repeated redshelf.grpc.core.User users = 8;
+}
+
+message ListSectionReply {
+  repeated Section sections = 1;
+
+  int32 offset = 2;
+  int32 total_count = 3;
+}
+
+message CreateSectionRequest {
+  string code = 1;
+  string name = 2;
+  repeated redshelf.grpc.product.Product products = 3;
+
+  Course course = 4;
+  Term term = 5;
+}
+
+//////////////////////////////////
+// EVENTS
+//////////////////////////////////
+
+message SectionCreatedEvent {
+  Section section = 1;
+}
+
+message SectionUpdatedEvent {
+  Section section = 1;
+}
+
+message SectionEnrollmentChangedEvent {
+  SectionEnrollment enrollment = 1;
+}
+
+//////////////////////////////////
+// ENTITIES
+//////////////////////////////////
+
+message University {
+  string id = 1;
+  string name = 2;
+
+  // Has many
+  repeated Department departments = 3;
+}
+
+message Department {
+  string id = 1;
+  string code = 2;
+  string name = 3;
+
+  // Has many
+  repeated Course courses = 4;
+}
+
+message Course {
+  string id = 1;
+  string code = 2;
+  string name = 3;
+  repeated UniversitySection sections = 4;
+
+  // Belongs to a
+  Department department = 5;
+}
+
+enum KeyDateType {
+  START_DATE = 0;
+  END_DATE = 1;
+  BILL_ON_DATE = 2;
+  ADD_DROP_DATE = 3;
+}
+
+message RelatedDate { // This may be something we want to have normalized on a specific section
+  KeyDateType type = 1;
+  google.protobuf.Timestamp date = 2;
+}
+
+message Term {
+  string id = 1;
+  string name = 2;
+  google.protobuf.Timestamp start = 3;
+  google.protobuf.Timestamp end = 4;
+}
+
+message TermDateOffset { // TODO: Should this be named something else?
+  KeyDateType type = 1;
+  int32 offset = 2; // Number of days before / after section date
+}
+
+message UniversitySection {
+  // May belong to a
+  Course course = 1;
+  Term term = 2;
+}
+
+message AdhocSection {
+
+}
+
+message Section {
+  string id = 1;
+  string code = 2;
+  string name = 3;
+  repeated SectionProduct products = 4;
+  repeated RelatedDate dates = 5;
+
+  oneof section_type_info {
+    AdhocSection ad_hoc_section = 6;
+    UniversitySection university_section = 7;
+  }
+
+  repeated SectionEnrollment enrollments = 8;
+  repeated redshelf.grpc.core.AlternateIdentifier identifiers = 9;
+}
+
+message SectionEnrollment {
+  string role = 1;
+  redshelf.grpc.core.User user = 2;
+  google.protobuf.Timestamp added = 3; // When the user was added to the section enrollment
+  google.protobuf.Timestamp removed = 4; // Not set if the user hasn't been removed from the section
+}
+
+message SectionProduct {
+  redshelf.grpc.product.ProductVariant product_variant = 1;
+}
